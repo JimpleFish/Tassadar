@@ -4,7 +4,7 @@
 using namespace BWAPI;
 using namespace Filter;
 
-void ExampleAIModule::onStart()
+void Tassadar::onStart()
 {
   // Hello World!
   Broodwar->sendText("Hello world!");
@@ -23,34 +23,14 @@ void ExampleAIModule::onStart()
   // and reduce the bot's APM (Actions Per Minute).
   Broodwar->setCommandOptimizationLevel(2);
 
-  // Check if this is a replay
-  if ( Broodwar->isReplay() )
-  {
-
-    // Announce the players in the replay
-    Broodwar << "The following players are in this replay:" << std::endl;
-    
-    // Iterate all the players in the game using a std:: iterator
-    Playerset players = Broodwar->getPlayers();
-    for(auto p = players.begin(); p != players.end(); ++p)
-    {
-      // Only print the player if they are not an observer
-      if ( !p->isObserver() )
-        Broodwar << p->getName() << ", playing as " << p->getRace() << std::endl;
-    }
-
-  }
-  else // if this is not a replay
-  {
-    // Retrieve you and your enemy's races. enemy() will just return the first enemy.
-    // If you wish to deal with multiple enemies then you must use enemies().
-    if ( Broodwar->enemy() ) // First make sure there is an enemy
-      Broodwar << "The matchup is " << Broodwar->self()->getRace() << " vs " << Broodwar->enemy()->getRace() << std::endl;
-  }
+	// Retrieve you and your enemy's races. enemy() will just return the first enemy.
+	// If you wish to deal with multiple enemies then you must use enemies().
+	if ( Broodwar->enemy() ) // First make sure there is an enemy
+		Broodwar << "The matchup is " << Broodwar->self()->getRace() << " vs " << Broodwar->enemy()->getRace() << std::endl;
 
 }
 
-void ExampleAIModule::onEnd(bool isWinner)
+void Tassadar::onEnd(bool isWinner)
 {
   // Called when the game ends
   if ( isWinner )
@@ -59,7 +39,7 @@ void ExampleAIModule::onEnd(bool isWinner)
   }
 }
 
-void ExampleAIModule::onFrame()
+void Tassadar::onFrame()
 {
   // Called once every game frame
 
@@ -192,7 +172,7 @@ void ExampleAIModule::onFrame()
   } // closure: unit iterator
 }
 
-void ExampleAIModule::onSendText(std::string text)
+void Tassadar::onSendText(std::string text)
 {
 
   // Send the text to the game if it is not being processed.
@@ -204,20 +184,20 @@ void ExampleAIModule::onSendText(std::string text)
 
 }
 
-void ExampleAIModule::onReceiveText(BWAPI::Player player, std::string text)
+void Tassadar::onReceiveText(BWAPI::Player player, std::string text)
 {
   // Parse the received text
   Broodwar << player->getName() << " said \"" << text << "\"" << std::endl;
 }
 
-void ExampleAIModule::onPlayerLeft(BWAPI::Player player)
+void Tassadar::onPlayerLeft(BWAPI::Player player)
 {
   // Interact verbally with the other players in the game by
   // announcing that the other player has left.
   Broodwar->sendText("Goodbye %s!", player->getName().c_str());
 }
 
-void ExampleAIModule::onNukeDetect(BWAPI::Position target)
+void Tassadar::onNukeDetect(BWAPI::Position target)
 {
 
   // Check if the target is a valid position
@@ -235,23 +215,23 @@ void ExampleAIModule::onNukeDetect(BWAPI::Position target)
   // You can also retrieve all the nuclear missile targets using Broodwar->getNukeDots()!
 }
 
-void ExampleAIModule::onUnitDiscover(BWAPI::Unit unit)
+void Tassadar::onUnitDiscover(BWAPI::Unit unit)
 {
 }
 
-void ExampleAIModule::onUnitEvade(BWAPI::Unit unit)
+void Tassadar::onUnitEvade(BWAPI::Unit unit)
 {
 }
 
-void ExampleAIModule::onUnitShow(BWAPI::Unit unit)
+void Tassadar::onUnitShow(BWAPI::Unit unit)
 {
 }
 
-void ExampleAIModule::onUnitHide(BWAPI::Unit unit)
+void Tassadar::onUnitHide(BWAPI::Unit unit)
 {
 }
 
-void ExampleAIModule::onUnitCreate(BWAPI::Unit unit)
+void Tassadar::onUnitCreate(BWAPI::Unit unit)
 {
   if ( Broodwar->isReplay() )
   {
@@ -266,11 +246,11 @@ void ExampleAIModule::onUnitCreate(BWAPI::Unit unit)
   }
 }
 
-void ExampleAIModule::onUnitDestroy(BWAPI::Unit unit)
+void Tassadar::onUnitDestroy(BWAPI::Unit unit)
 {
 }
 
-void ExampleAIModule::onUnitMorph(BWAPI::Unit unit)
+void Tassadar::onUnitMorph(BWAPI::Unit unit)
 {
   if ( Broodwar->isReplay() )
   {
@@ -285,15 +265,15 @@ void ExampleAIModule::onUnitMorph(BWAPI::Unit unit)
   }
 }
 
-void ExampleAIModule::onUnitRenegade(BWAPI::Unit unit)
+void Tassadar::onUnitRenegade(BWAPI::Unit unit)
 {
 }
 
-void ExampleAIModule::onSaveGame(std::string gameName)
+void Tassadar::onSaveGame(std::string gameName)
 {
   Broodwar << "The game was saved to \"" << gameName << "\"" << std::endl;
 }
 
-void ExampleAIModule::onUnitComplete(BWAPI::Unit unit)
+void Tassadar::onUnitComplete(BWAPI::Unit unit)
 {
 }

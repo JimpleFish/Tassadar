@@ -3,7 +3,7 @@
 
 // Remember not to use "Broodwar" in any global class constructor!
 
-class ExampleAIModule : public BWAPI::AIModule
+class Tassadar : public BWAPI::AIModule
 {
 public:
   // Virtual functions for callbacks, leave these as they are.
