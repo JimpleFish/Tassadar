@@ -88,7 +88,7 @@
       <TargetMachine>MachineX86</TargetMachine>
     </Link>
     <PostBuildEvent>
-      <Command>copy /y "$(TargetPath)" "C:\Program Files\StarCraft\bwapi-data\AI\$(TargetFileName)"</Command>
+      <Command>copy /y "$(TargetPath)" "$(ProgramFiles)\StarCraft\bwapi-data\AI\$(TargetFileName)"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
