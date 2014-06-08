@@ -11,6 +11,7 @@ void Tassadar::onStart()
 
 	// This writes it to the in-game console
 	Broodwar << "The map is " << Broodwar->mapName() << "!" << std::endl;
+	
 
 	// Enable the UserInput flag, which allows us to control the bot and type messages.
 	Broodwar->enableFlag(Flag::UserInput);
@@ -18,14 +19,14 @@ void Tassadar::onStart()
 	// Set the command optimization level so that common commands can be grouped
 	// and reduce the bot's APM (Actions Per Minute).
 	Broodwar->setCommandOptimizationLevel(2);
-
+	
 	// Retrieve you and your enemy's races. enemy() will just return the first enemy.
 	// If you wish to deal with multiple enemies then you must use enemies().
 	if ( Broodwar->enemy() ) // First make sure there is an enemy
 		Broodwar << "The matchup is " << Broodwar->self()->getRace() << " vs " << Broodwar->enemy()->getRace() << std::endl;
 
-	//if(Broodwar->self()->getRace() != Races.Protoss)
-	//	Broodwar << "I wanted to be Protoss, but all I got was crappy " << Broodwar->self()->getRace() << std::endl;
+	if(Broodwar->self()->getRace() != Races::Protoss)
+		Broodwar << "I wanted to be Protoss, but all I got was crappy " << Broodwar->self()->getRace() << std::endl;
 	
 }
 
@@ -106,9 +107,38 @@ void Tassadar::onFrame()
 		}
 		else if ( u->getType().isResourceDepot() ) // A resource depot is a Command Center, Nexus, or Hatchery
 		{
+			// Retrieve the supply provider type in the case that we have run out of supplies
+			UnitType supplyProviderType = u->getType().getRace().getSupplyProvider();
+			static int lastChecked = 0;
 
+			// If we're nearly out of supply
+			if ( Broodwar->self()->supplyTotal()/2 - Broodwar->self()->supplyUsed()/2 <= 2 &&
+				lastChecked + 600 < Broodwar->getFrameCount() )
+			{
+				if(Broodwar->self()->minerals() >= 120)
+				{
+					Broodwar->sendText("Building pylon"); 
+					Broodwar->sendText("My supply is %d/%d", Broodwar->self()->supplyUsed()/2, Broodwar->self()->supplyTotal()/2);
+
+					// Retrieve a unit that is capable of constructing the supply needed
+					Unit supplyBuilder = u->getClosestUnit(  GetType == supplyProviderType.whatBuilds().first &&
+						(IsIdle || IsGatheringMinerals) &&
+						IsOwned);
+					// If a unit was found
+					if ( supplyBuilder )
+					{
+						TilePosition targetBuildLocation = Broodwar->getBuildLocation(supplyProviderType, supplyBuilder->getTilePosition());
+						if ( targetBuildLocation )
+						{
+							// Order the builder to construct the supply structure
+							supplyBuilder->build( supplyProviderType, targetBuildLocation );							
+							lastChecked = Broodwar->getFrameCount();
+						}
+					} // closure: supplyBuilder is valid
+				}
+			} // closure: insufficient supply
 			// Order the depot to construct more workers! But only when it is idle.
-			if ( u->isIdle() && !u->train(u->getType().getRace().getWorker()) )
+			else if ( u->isIdle() && !u->train(u->getType().getRace().getWorker()) )
 			{
 				// If that fails, draw the error at the location so that you can visibly see what went wrong!
 				// However, drawing the error once will only appear for a single frame
@@ -118,55 +148,8 @@ void Tassadar::onFrame()
 				Broodwar->registerEvent([pos,lastErr](Game*){ Broodwar->drawTextMap(pos, "%c%s", Text::White, lastErr.c_str()); },   // action
 					nullptr,    // condition
 					Broodwar->getLatencyFrames());  // frames to run
-
-				// Retrieve the supply provider type in the case that we have run out of supplies
-				UnitType supplyProviderType = u->getType().getRace().getSupplyProvider();
-				static int lastChecked = 0;
-
-				// If we are supply blocked and haven't tried constructing more recently
-				if (  lastErr == Errors::Insufficient_Supply &&
-					lastChecked + 400 < Broodwar->getFrameCount() &&
-					Broodwar->self()->incompleteUnitCount(supplyProviderType) == 0 )
-				{
-					lastChecked = Broodwar->getFrameCount();
-
-					// Retrieve a unit that is capable of constructing the supply needed
-					Unit supplyBuilder = u->getClosestUnit(  GetType == supplyProviderType.whatBuilds().first &&
-						(IsIdle || IsGatheringMinerals) &&
-						IsOwned);
-					// If a unit was found
-					if ( supplyBuilder )
-					{
-						if ( supplyProviderType.isBuilding() )
-						{
-							TilePosition targetBuildLocation = Broodwar->getBuildLocation(supplyProviderType, supplyBuilder->getTilePosition());
-							if ( targetBuildLocation )
-							{
-								// Register an event that draws the target build location
-								Broodwar->registerEvent([targetBuildLocation,supplyProviderType](Game*)
-								{
-									Broodwar->drawBoxMap( Position(targetBuildLocation),
-										Position(targetBuildLocation + supplyProviderType.tileSize()),
-										Colors::Blue);
-								},
-									nullptr,  // condition
-									supplyProviderType.buildTime() + 100 );  // frames to run
-
-								// Order the builder to construct the supply structure
-								supplyBuilder->build( supplyProviderType, targetBuildLocation );
-							}
-						}
-						else
-						{
-							// Train the supply provider (Overlord) if the provider is not a structure
-							supplyBuilder->train( supplyProviderType );
-						}
-					} // closure: supplyBuilder is valid
-				} // closure: insufficient supply
-			} // closure: failed to train idle unit
-
+			}// closure: failed to train idle unit
 		}
-
 	} // closure: unit iterator
 }
 
