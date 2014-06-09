@@ -4,6 +4,8 @@
 using namespace BWAPI;
 using namespace Filter;
 
+int shotgunnedMins;
+
 void Tassadar::onStart()
 {
 	// Send text sends it to the other players
@@ -27,7 +29,8 @@ void Tassadar::onStart()
 
 	if(Broodwar->self()->getRace() != Races::Protoss)
 		Broodwar << "I wanted to be Protoss, but all I got was crappy " << Broodwar->self()->getRace() << std::endl;
-	
+
+	shotgunnedMins = Broodwar->self()->getRace().getCenter().mineralPrice() + 4*Broodwar->self()->getRace().getWorker().mineralPrice();
 }
 
 void Tassadar::onEnd(bool isWinner)
@@ -44,7 +47,9 @@ void Tassadar::onFrame()
 {
 	// Display the game frame rate as text in the upper left area of the screen
 	Broodwar->drawTextScreen(200, 0,  "FPS: %d", Broodwar->getFPS() );
-	Broodwar->drawTextScreen(200, 20, "Average FPS: %f", Broodwar->getAverageFPS() );
+	//Broodwar->drawTextScreen(200, 20, "Average FPS: %f", Broodwar->getAverageFPS() );
+	Broodwar->drawTextScreen(200, 20, "Shotgunned Mins: %d", shotgunnedMins); 
+	Broodwar->drawTextScreen(200, 40, "Available Mins: %d", Broodwar->self()->minerals() - shotgunnedMins);
 
 	// Return if the game is a replay or is paused
 	if ( Broodwar->isReplay() || Broodwar->isPaused() || !Broodwar->self() )
@@ -112,10 +117,10 @@ void Tassadar::onFrame()
 			static int lastChecked = 0;
 
 			// If we're nearly out of supply
-			if ( Broodwar->self()->supplyTotal()/2 - Broodwar->self()->supplyUsed()/2 <= 2 &&
-				lastChecked + 600 < Broodwar->getFrameCount() )
+			if ( Broodwar->self()->supplyTotal()/2 - Broodwar->self()->supplyUsed()/2 <= 1 &&
+				lastChecked + supplyProviderType.buildTime() + 200 < Broodwar->getFrameCount() )
 			{
-				if(Broodwar->self()->minerals() >= 120)
+				if(Broodwar->self()->minerals() - shotgunnedMins >= 100)
 				{
 					Broodwar->sendText("Building pylon"); 
 					Broodwar->sendText("My supply is %d/%d", Broodwar->self()->supplyUsed()/2, Broodwar->self()->supplyTotal()/2);
@@ -131,23 +136,29 @@ void Tassadar::onFrame()
 						if ( targetBuildLocation )
 						{
 							// Order the builder to construct the supply structure
-							supplyBuilder->build( supplyProviderType, targetBuildLocation );							
+							supplyBuilder->build( supplyProviderType, targetBuildLocation );
+							shotgunnedMins += supplyProviderType.mineralPrice();
 							lastChecked = Broodwar->getFrameCount();
 						}
 					} // closure: supplyBuilder is valid
 				}
 			} // closure: insufficient supply
 			// Order the depot to construct more workers! But only when it is idle.
-			else if ( u->isIdle() && !u->train(u->getType().getRace().getWorker()) )
+			else if ( u->isIdle() && Broodwar->self()->minerals() - shotgunnedMins >= u->getType().getRace().getWorker().mineralPrice() )
 			{
-				// If that fails, draw the error at the location so that you can visibly see what went wrong!
-				// However, drawing the error once will only appear for a single frame
-				// so create an event that keeps it on the screen for some frames
-				Position pos = u->getPosition();
-				Error lastErr = Broodwar->getLastError();
-				Broodwar->registerEvent([pos,lastErr](Game*){ Broodwar->drawTextMap(pos, "%c%s", Text::White, lastErr.c_str()); },   // action
-					nullptr,    // condition
-					Broodwar->getLatencyFrames());  // frames to run
+				if(u->train(u->getType().getRace().getWorker()))
+					shotgunnedMins += u->getType().getRace().getWorker().mineralPrice();
+				else
+				{
+					// If that fails, draw the error at the location so that you can visibly see what went wrong!
+					// However, drawing the error once will only appear for a single frame
+					// so create an event that keeps it on the screen for some frames
+					Position pos = u->getPosition();
+					Error lastErr = Broodwar->getLastError();
+					Broodwar->registerEvent([pos,lastErr](Game*){ Broodwar->drawTextMap(pos, "%c%s", Text::White, lastErr.c_str()); },   // action
+						nullptr,    // condition
+						Broodwar->getLatencyFrames());  // frames to run
+				}
 			}// closure: failed to train idle unit
 		}
 	} // closure: unit iterator
@@ -210,6 +221,15 @@ void Tassadar::onUnitHide(BWAPI::Unit unit)
 
 void Tassadar::onUnitCreate(BWAPI::Unit unit)
 {
+	if(unit->getPlayer() == Broodwar->self())
+	{
+		shotgunnedMins -= unit->getType().mineralPrice();
+		Broodwar->sendText("I have built a %s", unit->getType().c_str());
+	}
+	if(unit->getType().c_str() == "Protoss_Probe")
+	{
+		Broodwar->sendText("Built probe at %d", Broodwar->getFrameCount());
+	}
 }
 
 void Tassadar::onUnitDestroy(BWAPI::Unit unit)
