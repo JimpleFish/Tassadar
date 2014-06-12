@@ -98,10 +98,14 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="Source\Dll.cpp" />
+    <ClCompile Include="Source\MoneyManager.cpp" />
     <ClCompile Include="Source\Tassadar.cpp" />
+    <ClCompile Include="Source\WorkerManager.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Source\MoneyManager.h" />
     <ClInclude Include="Source\Tassadar.h" />
+    <ClInclude Include="Source\WorkerManager.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

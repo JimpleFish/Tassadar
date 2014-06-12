@@ -4,8 +4,6 @@
 using namespace BWAPI;
 using namespace Filter;
 
-int shotgunnedMins;
-
 void Tassadar::onStart()
 {
 	// Send text sends it to the other players
@@ -19,6 +17,7 @@ void Tassadar::onStart()
 	Broodwar->enableFlag(Flag::UserInput);
 
 	// Set the command optimization level so that common commands can be grouped
+
 	// and reduce the bot's APM (Actions Per Minute).
 	Broodwar->setCommandOptimizationLevel(2);
 	
@@ -27,10 +26,7 @@ void Tassadar::onStart()
 	if ( Broodwar->enemy() ) // First make sure there is an enemy
 		Broodwar << "The matchup is " << Broodwar->self()->getRace() << " vs " << Broodwar->enemy()->getRace() << std::endl;
 
-	if(Broodwar->self()->getRace() != Races::Protoss)
-		Broodwar << "I wanted to be Protoss, but all I got was crappy " << Broodwar->self()->getRace() << std::endl;
-
-	shotgunnedMins = Broodwar->self()->getRace().getCenter().mineralPrice() + 4*Broodwar->self()->getRace().getWorker().mineralPrice();
+	banker.SetReserved(Broodwar->self()->getRace().getCenter().mineralPrice() + 4*Broodwar->self()->getRace().getWorker().mineralPrice());
 }
 
 void Tassadar::onEnd(bool isWinner)
@@ -48,8 +44,7 @@ void Tassadar::onFrame()
 	// Display the game frame rate as text in the upper left area of the screen
 	Broodwar->drawTextScreen(200, 0,  "FPS: %d", Broodwar->getFPS() );
 	//Broodwar->drawTextScreen(200, 20, "Average FPS: %f", Broodwar->getAverageFPS() );
-	Broodwar->drawTextScreen(200, 20, "Shotgunned Mins: %d", shotgunnedMins); 
-	Broodwar->drawTextScreen(200, 40, "Available Mins: %d", Broodwar->self()->minerals() - shotgunnedMins);
+	Broodwar->drawTextScreen(200, 40, "Available Mins: %d", banker.AvailableMinerals());
 
 	// Return if the game is a replay or is paused
 	if ( Broodwar->isReplay() || Broodwar->isPaused() || !Broodwar->self() )
@@ -88,27 +83,7 @@ void Tassadar::onFrame()
 		// If the unit is a worker unit
 		if ( u->getType().isWorker() )
 		{
-			// if our worker is idle
-			if ( u->isIdle() )
-			{
-				// Order workers carrying a resource to return them to the center,
-				// otherwise find a mineral patch to harvest.
-				if ( u->isCarryingGas() || u->isCarryingMinerals() )
-				{
-					u->returnCargo();
-				}
-				else if ( !u->getPowerUp() )  // The worker cannot harvest anything if it
-				{                             // is carrying a powerup such as a flag
-					// Harvest from the nearest mineral patch or gas refinery
-					if ( !u->gather( u->getClosestUnit( IsMineralField || IsRefinery )) )
-					{
-						// If the call fails, then print the last error message
-						Broodwar << Broodwar->getLastError() << std::endl;
-					}
-
-				} // closure: has no powerup
-			} // closure: if idle
-
+			bossMan.TickWorker(*u);
 		}
 		else if ( u->getType().isResourceDepot() ) // A resource depot is a Command Center, Nexus, or Hatchery
 		{
@@ -117,10 +92,10 @@ void Tassadar::onFrame()
 			static int lastChecked = 0;
 
 			// If we're nearly out of supply
-			if ( Broodwar->self()->supplyTotal()/2 - Broodwar->self()->supplyUsed()/2 <= 1 &&
+			if ( Broodwar->self()->supplyTotal()/2 - Broodwar->self()->supplyUsed()/2 <= 2 &&
 				lastChecked + supplyProviderType.buildTime() + 200 < Broodwar->getFrameCount() )
 			{
-				if(Broodwar->self()->minerals() - shotgunnedMins >= 100)
+				if(banker.AvailableMinerals() >= 100)
 				{
 					Broodwar->sendText("Building pylon"); 
 					Broodwar->sendText("My supply is %d/%d", Broodwar->self()->supplyUsed()/2, Broodwar->self()->supplyTotal()/2);
@@ -136,32 +111,32 @@ void Tassadar::onFrame()
 						if ( targetBuildLocation )
 						{
 							// Order the builder to construct the supply structure
+							banker.RequestMinerals(supplyProviderType.mineralPrice());
 							supplyBuilder->build( supplyProviderType, targetBuildLocation );
-							shotgunnedMins += supplyProviderType.mineralPrice();
 							lastChecked = Broodwar->getFrameCount();
 						}
 					} // closure: supplyBuilder is valid
 				}
 			} // closure: insufficient supply
 			// Order the depot to construct more workers! But only when it is idle.
-			else if ( u->isIdle() && Broodwar->self()->minerals() - shotgunnedMins >= u->getType().getRace().getWorker().mineralPrice() )
+			else if ( u->isIdle() && banker.AvailableMinerals() >= u->getType().getRace().getWorker().mineralPrice() )
 			{
-				if(u->train(u->getType().getRace().getWorker()))
-					shotgunnedMins += u->getType().getRace().getWorker().mineralPrice();
-				else
+				if(banker.RequestMinerals(u->getType().getRace().getWorker().mineralPrice()))
 				{
-					// If that fails, draw the error at the location so that you can visibly see what went wrong!
-					// However, drawing the error once will only appear for a single frame
-					// so create an event that keeps it on the screen for some frames
-					Position pos = u->getPosition();
-					Error lastErr = Broodwar->getLastError();
-					Broodwar->registerEvent([pos,lastErr](Game*){ Broodwar->drawTextMap(pos, "%c%s", Text::White, lastErr.c_str()); },   // action
-						nullptr,    // condition
-						Broodwar->getLatencyFrames());  // frames to run
+					if(!u->train(u->getType().getRace().getWorker()))
+					{
+						banker.ReturnMinerals(u->getType().getRace().getWorker().mineralPrice());
+
+						Position pos = u->getPosition();
+						Error lastErr = Broodwar->getLastError();
+						Broodwar->registerEvent([pos,lastErr](Game*){ Broodwar->drawTextMap(pos, "%c%s", Text::White, lastErr.c_str()); },   // action
+							nullptr,    // condition
+							Broodwar->getLatencyFrames());  // frames to run
+					}
 				}
-			}// closure: failed to train idle unit
+			}
 		}
-	} // closure: unit iterator
+	}
 }
 
 void Tassadar::onSendText(std::string text)
@@ -223,12 +198,14 @@ void Tassadar::onUnitCreate(BWAPI::Unit unit)
 {
 	if(unit->getPlayer() == Broodwar->self())
 	{
-		shotgunnedMins -= unit->getType().mineralPrice();
+		//Broodwar << "Available b4 unit: " << banker.AvailableMinerals() << std::endl;
+		banker.ReturnMinerals(unit->getType().mineralPrice());
+		//Broodwar << "Available after unit: " << banker.AvailableMinerals() << std::endl;
 		Broodwar->sendText("I have built a %s", unit->getType().c_str());
 	}
-	if(unit->getType().c_str() == "Protoss_Probe")
+	if(unit->getType().isWorker())
 	{
-		Broodwar->sendText("Built probe at %d", Broodwar->getFrameCount());
+		bossMan.WorkerCreated(unit);
 	}
 }
 
