@@ -3,6 +3,8 @@
 
 // Remember not to use "Broodwar" in any global class constructor!
 
+
+
 class Tassadar : public BWAPI::AIModule
 {
 public:
@@ -24,6 +26,11 @@ public:
   virtual void onUnitRenegade(BWAPI::Unit unit);
   virtual void onSaveGame(std::string gameName);
   virtual void onUnitComplete(BWAPI::Unit unit);
+
+  void StephansConstructor();
   // Everything below this line is safe to modify.
 
+
+public:
+	int m_gatewayAmount;
 };

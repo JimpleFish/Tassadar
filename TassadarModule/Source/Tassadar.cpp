@@ -5,6 +5,17 @@ using namespace BWAPI;
 using namespace Filter;
 
 int shotgunnedMins;
+int availableMins; 
+int m_gatewayAmount;
+
+#define GATEWAYMAXAMOUNT 15
+#define GATEWAYRESOURCEAMOUNT 150
+
+
+void Tassadar::StephansConstructor()
+{
+	m_gatewayAmount = 0;
+}
 
 void Tassadar::onStart()
 {
@@ -14,7 +25,6 @@ void Tassadar::onStart()
 	// This writes it to the in-game console
 	Broodwar << "The map is " << Broodwar->mapName() << "!" << std::endl;
 	
-
 	// Enable the UserInput flag, which allows us to control the bot and type messages.
 	Broodwar->enableFlag(Flag::UserInput);
 
@@ -31,6 +41,9 @@ void Tassadar::onStart()
 		Broodwar << "I wanted to be Protoss, but all I got was crappy " << Broodwar->self()->getRace() << std::endl;
 
 	shotgunnedMins = Broodwar->self()->getRace().getCenter().mineralPrice() + 4*Broodwar->self()->getRace().getWorker().mineralPrice();
+
+	StephansConstructor();
+
 }
 
 void Tassadar::onEnd(bool isWinner)
@@ -49,7 +62,14 @@ void Tassadar::onFrame()
 	Broodwar->drawTextScreen(200, 0,  "FPS: %d", Broodwar->getFPS() );
 	//Broodwar->drawTextScreen(200, 20, "Average FPS: %f", Broodwar->getAverageFPS() );
 	Broodwar->drawTextScreen(200, 20, "Shotgunned Mins: %d", shotgunnedMins); 
-	Broodwar->drawTextScreen(200, 40, "Available Mins: %d", Broodwar->self()->minerals() - shotgunnedMins);
+	
+	availableMins = Broodwar->self()->minerals() - shotgunnedMins;
+	Broodwar->drawTextScreen(200, 40, "Available Mins: %d", availableMins);
+
+	Broodwar->drawTextScreen(200, 60, "Current Gateways: %d", m_gatewayAmount);
+
+
+	
 
 	// Return if the game is a replay or is paused
 	if ( Broodwar->isReplay() || Broodwar->isPaused() || !Broodwar->self() )
@@ -59,6 +79,8 @@ void Tassadar::onFrame()
 	// Latency frames are the number of frames before commands are processed.
 	if ( Broodwar->getFrameCount() % Broodwar->getLatencyFrames() != 0 )
 		return;
+
+	
 
 	// Iterate through all the units that we own
 	Unitset myUnits = Broodwar->self()->getUnits();
@@ -86,8 +108,46 @@ void Tassadar::onFrame()
 
 
 		// If the unit is a worker unit
-		if ( u->getType().isWorker() )
+		UnitTypes::Enum::Protoss_Gateway;
+		if(u->getType() == UnitTypes::Enum::Protoss_Gateway)
 		{
+			Broodwar << "WE CAN BUILD A PROTOSS_ZEALOT" << std::endl;
+			if(availableMins >= 50)
+			{
+				
+
+			}
+		}
+		else if ( u->getType().isWorker() )
+		{
+			///////////////////////////////////////////////////////////////////////////////
+			// Check we can build gateway
+			if( availableMins >= GATEWAYRESOURCEAMOUNT)
+			{
+				Broodwar << "Correct Resources for Gateway (1)" << std::endl;
+		
+				// Specifiy to build gateway
+				UnitType buildingType = UnitTypes::Enum::Protoss_Gateway;
+						
+				Unit builder = u->getClosestUnit(  GetType == buildingType.whatBuilds().first &&
+				(IsIdle || IsGatheringMinerals) &&
+				IsOwned);
+				// If a unit was found
+				if ( builder )
+				{
+					Broodwar << "Builder found for Gateway (2)" << std::endl;
+					TilePosition targetBuildLocation = Broodwar->getBuildLocation(buildingType, builder->getTilePosition());
+					if ( targetBuildLocation )
+					{
+						// Order the builder to construct the structure
+						builder->build(buildingType, targetBuildLocation );
+						Broodwar << "Builder now building Gateway (3)" << std::endl;
+					}
+				}
+								
+			}
+
+			///////////////////////////////////////////////////////////////////////////////
 			// if our worker is idle
 			if ( u->isIdle() )
 			{
@@ -97,8 +157,10 @@ void Tassadar::onFrame()
 				{
 					u->returnCargo();
 				}
-				else if ( !u->getPowerUp() )  // The worker cannot harvest anything if it
+				else if ( !u->getPowerUp())  // The worker cannot harvest anything if it
 				{                             // is carrying a powerup such as a flag
+					
+					
 					// Harvest from the nearest mineral patch or gas refinery
 					if ( !u->gather( u->getClosestUnit( IsMineralField || IsRefinery )) )
 					{
