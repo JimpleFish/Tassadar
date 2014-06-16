@@ -11,7 +11,6 @@ WorkerManager::~WorkerManager(void)
 
 void WorkerManager::WorkerCreated(BWAPI::Unit &proleteriat)
 {
-	Broodwar->sendText("Built probe at %d", Broodwar->getFrameCount());
 }
 
 void WorkerManager::TickWorker(BWAPI::Unit &proleteriat)

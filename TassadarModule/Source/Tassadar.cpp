@@ -44,7 +44,10 @@ void Tassadar::onFrame()
 	// Display the game frame rate as text in the upper left area of the screen
 	Broodwar->drawTextScreen(200, 0,  "FPS: %d", Broodwar->getFPS() );
 	//Broodwar->drawTextScreen(200, 20, "Average FPS: %f", Broodwar->getAverageFPS() );
-	Broodwar->drawTextScreen(200, 40, "Available Mins: %d", banker.AvailableMinerals());
+	Broodwar->drawTextScreen(200, 20, "Available Mins: %d", banker.AvailableMinerals());
+	Broodwar->drawTextScreen(200, 40, "Supply: %d / %d", Broodwar->self()->supplyUsed()/2, Broodwar->self()->supplyTotal()/2);
+	Broodwar->drawTextScreen(200, 60, "%d%%", (100 * Broodwar->self()->supplyUsed()/2) / (Broodwar->self()->supplyTotal()/2));
+	
 
 	// Return if the game is a replay or is paused
 	if ( Broodwar->isReplay() || Broodwar->isPaused() || !Broodwar->self() )
@@ -92,13 +95,13 @@ void Tassadar::onFrame()
 			static int lastChecked = 0;
 
 			// If we're nearly out of supply
-			if ( Broodwar->self()->supplyTotal()/2 - Broodwar->self()->supplyUsed()/2 <= 2 &&
+			if ( (100 * Broodwar->self()->supplyUsed()/2) / (Broodwar->self()->supplyTotal()/2)  >= 80 &&
 				lastChecked + supplyProviderType.buildTime() + 200 < Broodwar->getFrameCount() )
 			{
 				if(banker.AvailableMinerals() >= 100)
 				{
 					Broodwar->sendText("Building pylon"); 
-					Broodwar->sendText("My supply is %d/%d", Broodwar->self()->supplyUsed()/2, Broodwar->self()->supplyTotal()/2);
+					Broodwar->sendText("My supply usage is at %d%%", 100 * (Broodwar->self()->supplyUsed()/2) / (Broodwar->self()->supplyTotal()/2));
 
 					// Retrieve a unit that is capable of constructing the supply needed
 					Unit supplyBuilder = u->getClosestUnit(  GetType == supplyProviderType.whatBuilds().first &&
@@ -112,21 +115,21 @@ void Tassadar::onFrame()
 						{
 							// Order the builder to construct the supply structure
 							banker.RequestMinerals(supplyProviderType.mineralPrice());
-							supplyBuilder->build( supplyProviderType, targetBuildLocation );
+							if(!supplyBuilder->build( supplyProviderType, targetBuildLocation ))
+								banker.ReturnMinerals(supplyProviderType.mineralPrice());
 							lastChecked = Broodwar->getFrameCount();
 						}
 					} // closure: supplyBuilder is valid
 				}
 			} // closure: insufficient supply
 			// Order the depot to construct more workers! But only when it is idle.
-			else if ( u->isIdle() && banker.AvailableMinerals() >= u->getType().getRace().getWorker().mineralPrice() )
+			else if ( u->isIdle() && banker.AvailableMinerals() >= UnitTypes::Protoss_Probe.mineralPrice() )
 			{
-				if(banker.RequestMinerals(u->getType().getRace().getWorker().mineralPrice()))
+				if(banker.RequestMinerals(UnitTypes::Protoss_Probe.mineralPrice()))
 				{
-					if(!u->train(u->getType().getRace().getWorker()))
+					if(!u->train(UnitTypes::Protoss_Probe))
 					{
-						banker.ReturnMinerals(u->getType().getRace().getWorker().mineralPrice());
-
+						banker.ReturnMinerals(UnitTypes::Protoss_Probe.mineralPrice());
 						Position pos = u->getPosition();
 						Error lastErr = Broodwar->getLastError();
 						Broodwar->registerEvent([pos,lastErr](Game*){ Broodwar->drawTextMap(pos, "%c%s", Text::White, lastErr.c_str()); },   // action
@@ -134,6 +137,32 @@ void Tassadar::onFrame()
 							Broodwar->getLatencyFrames());  // frames to run
 					}
 				}
+			}
+
+			if(banker.AvailableMinerals() >= UnitTypes::Protoss_Gateway.mineralPrice())
+			{
+				Unit builder = u->getClosestUnit(GetType == UnitTypes::Protoss_Probe &&
+				(IsIdle || IsGatheringMinerals) &&
+				IsOwned);
+				// If a unit was found
+				if ( builder )
+				{
+					TilePosition targetBuildLocation = Broodwar->getBuildLocation(UnitTypes::Protoss_Gateway, builder->getTilePosition());
+					if ( targetBuildLocation )
+					{
+						// Order the builder to construct the structure
+						if(banker.RequestMinerals(UnitTypes::Protoss_Gateway.mineralPrice()))
+							builder->build(UnitTypes::Protoss_Gateway, targetBuildLocation);
+					}
+				}
+			}
+		}
+		else if(u->getType() == UnitTypes::Protoss_Gateway)
+		{
+			if(u->isIdle() && banker.AvailableMinerals() >= UnitTypes::Protoss_Zealot.mineralPrice())
+			{
+				if(u->train(UnitTypes::Protoss_Zealot))
+					banker.RequestMinerals(UnitTypes::Protoss_Zealot.mineralPrice());
 			}
 		}
 	}
