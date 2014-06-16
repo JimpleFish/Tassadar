@@ -6,6 +6,10 @@ using namespace Filter;
 
 int shotgunnedMins;
 
+//ugly global, we need a way to store the ID's of important units
+int scoutProbeID;
+
+
 void Tassadar::onStart()
 {
 	// Send text sends it to the other players
@@ -14,13 +18,14 @@ void Tassadar::onStart()
 	// This writes it to the in-game console
 	Broodwar << "The map is " << Broodwar->mapName() << "!" << std::endl;
 	
-
 	// Enable the UserInput flag, which allows us to control the bot and type messages.
 	Broodwar->enableFlag(Flag::UserInput);
 
 	// Set the command optimization level so that common commands can be grouped
 	// and reduce the bot's APM (Actions Per Minute).
 	Broodwar->setCommandOptimizationLevel(2);
+
+	Broodwar->setLocalSpeed(15);
 	
 	// Retrieve you and your enemy's races. enemy() will just return the first enemy.
 	// If you wish to deal with multiple enemies then you must use enemies().
@@ -88,6 +93,29 @@ void Tassadar::onFrame()
 		// If the unit is a worker unit
 		if ( u->getType().isWorker() )
 		{
+			//if it is our scout
+			if (u->getID() == scoutProbeID)
+			{
+				double pos;
+				if ( u->isIdle() )
+				{
+					Broodwar->sendText("the scouts position is currently, (%d, %d)", u->getLeft(), u->getTop() );																
+					if (700 > u->getTop())
+					{
+						BWAPI::Position pos(1381,5757);
+						u->move(pos);
+
+					}
+					else
+					{
+						BWAPI::Position pos(633,472);
+						u->move(pos);
+						
+					}
+					//something to make it attack
+				}
+
+			}
 			// if our worker is idle
 			if ( u->isIdle() )
 			{
@@ -96,16 +124,42 @@ void Tassadar::onFrame()
 				if ( u->isCarryingGas() || u->isCarryingMinerals() )
 				{
 					u->returnCargo();
+					
 				}
 				else if ( !u->getPowerUp() )  // The worker cannot harvest anything if it
 				{                             // is carrying a powerup such as a flag
+
+					//if it is the 7th probe, use it to explore (possibly put a check before to work out if exploring is still needed)
+					if (Broodwar->self()->supplyUsed()/2 == 5)
+					{
+						double pos;
+						scoutProbeID = u->getID();
+						Broodwar->sendText("the scouts position is currently, (%d, %d)", u->getLeft(), u->getTop());
+						if (700 > u->getTop())
+						{
+							Broodwar->sendText("we are in the top half of the map");
+							BWAPI::Position pos(1381,5757);
+							u->move(pos);
+							//u->move(84);
+							
+
+						}
+						else
+						{
+							Broodwar->sendText("we are in the bottom half of the map");
+							BWAPI::Position pos(633,472);
+							//u->move((0,0), false);
+							u->move(pos);
+						}
+
+					}
 					// Harvest from the nearest mineral patch or gas refinery
-					if ( !u->gather( u->getClosestUnit( IsMineralField || IsRefinery )) )
+					else if ( !u->gather( u->getClosestUnit( IsMineralField || IsRefinery )) )
 					{
 						// If the call fails, then print the last error message
 						Broodwar << Broodwar->getLastError() << std::endl;
 					}
-
+					
 				} // closure: has no powerup
 			} // closure: if idle
 
@@ -205,6 +259,30 @@ void Tassadar::onNukeDetect(BWAPI::Position target)
 
 void Tassadar::onUnitDiscover(BWAPI::Unit unit)
 {
+	
+	Position discoveredUnitPos = unit->getPosition();
+	int ourID = Broodwar->self()->getID();
+
+	if (unit->getPlayer()->isEnemy(Broodwar->getPlayer(ourID)) )
+	{
+		Broodwar->sendText("Enemy Unit Discovered");
+		if (unit->getType().isWorker() )
+		{
+
+			Unitset myUnits = Broodwar->self()->getUnits();
+			for ( Unitset::iterator u = myUnits.begin(); u != myUnits.end(); ++u )
+			{
+				if (u->getID() == scoutProbeID) 
+				{
+					if (!u->isAttacking())
+					{
+						u->attack(discoveredUnitPos);
+					}
+				}
+			}
+		}
+	}
+	
 }
 
 void Tassadar::onUnitEvade(BWAPI::Unit unit)
@@ -252,3 +330,4 @@ void Tassadar::onSaveGame(std::string gameName)
 void Tassadar::onUnitComplete(BWAPI::Unit unit)
 {
 }
+
