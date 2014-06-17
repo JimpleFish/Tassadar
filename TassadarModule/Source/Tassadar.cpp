@@ -4,6 +4,45 @@
 using namespace BWAPI;
 using namespace Filter;
 
+
+int m_gatewayAmount = 0;
+int m_maxGateway = 0;
+
+int m_cyberneticAmount = 0;
+int m_maxCybernetic = 1;
+
+// Calculates a new limit depending on supply used. 
+void Tassadar::calculateBestGatewayAmount()
+{
+	int supplyUsed = Broodwar->self()->supplyUsed()/2;
+
+	if(supplyUsed < 10)
+	{
+		m_maxGateway = 2;
+	}
+	else if (supplyUsed >= 10 && supplyUsed <= 20)
+	{
+		m_maxGateway = 3;
+	}
+	else if (supplyUsed >= 21 && supplyUsed <= 30)
+	{
+		m_maxGateway = 4;
+	}
+	else if (supplyUsed >= 31 && supplyUsed <= 40)
+	{
+		m_maxGateway = 5;
+	}
+	else if (supplyUsed >= 41 && supplyUsed <= 50)
+	{
+		m_maxGateway = 6;
+	}
+	else 
+	{
+		m_maxGateway = 6;
+	}
+
+}
+
 void Tassadar::onStart()
 {
 	// Send text sends it to the other players
@@ -41,14 +80,18 @@ void Tassadar::onEnd(bool isWinner)
 // Called once every game frame
 void Tassadar::onFrame()
 {
+	calculateBestGatewayAmount();
+
 	// Display the game frame rate as text in the upper left area of the screen
 	Broodwar->drawTextScreen(200, 0,  "FPS: %d", Broodwar->getFPS() );
 	//Broodwar->drawTextScreen(200, 20, "Average FPS: %f", Broodwar->getAverageFPS() );
 	Broodwar->drawTextScreen(200, 20, "Available Mins: %d", banker.AvailableMinerals());
 	Broodwar->drawTextScreen(200, 40, "Supply: %d / %d", Broodwar->self()->supplyUsed()/2, Broodwar->self()->supplyTotal()/2);
 	Broodwar->drawTextScreen(200, 60, "%d%%", (100 * Broodwar->self()->supplyUsed()/2) / (Broodwar->self()->supplyTotal()/2));
-	
 
+	Broodwar->drawTextScreen(50, 20, "Current Gateways: %d", m_gatewayAmount);
+	Broodwar->drawTextScreen(50, 40, "Max Gateways: %d", m_maxGateway);
+	
 	// Return if the game is a replay or is paused
 	if ( Broodwar->isReplay() || Broodwar->isPaused() || !Broodwar->self() )
 		return;
@@ -139,7 +182,7 @@ void Tassadar::onFrame()
 				}
 			}
 
-			if(banker.AvailableMinerals() >= UnitTypes::Protoss_Gateway.mineralPrice())
+			if(banker.AvailableMinerals() >= UnitTypes::Protoss_Gateway.mineralPrice() && m_gatewayAmount <= m_maxGateway )
 			{
 				Unit builder = u->getClosestUnit(GetType == UnitTypes::Protoss_Probe &&
 				(IsIdle || IsGatheringMinerals) &&
@@ -153,6 +196,25 @@ void Tassadar::onFrame()
 						// Order the builder to construct the structure
 						if(banker.RequestMinerals(UnitTypes::Protoss_Gateway.mineralPrice()))
 							builder->build(UnitTypes::Protoss_Gateway, targetBuildLocation);
+							m_gatewayAmount++;
+					}
+				}
+			}
+			if(banker.AvailableMinerals() >= UnitTypes::Protoss_Cybernetics_Core.mineralPrice() && m_cyberneticAmount <= m_maxCybernetic )
+			{
+				Unit builder = u->getClosestUnit(GetType == UnitTypes::Protoss_Probe &&
+				(IsIdle || IsGatheringMinerals) &&
+				IsOwned);
+				// If a unit was found
+				if ( builder )
+				{
+					TilePosition targetBuildLocation = Broodwar->getBuildLocation(UnitTypes::Protoss_Cybernetics_Core, builder->getTilePosition());
+					if ( targetBuildLocation )
+					{
+						// Order the builder to construct the structure
+						if(banker.RequestMinerals(UnitTypes::Protoss_Cybernetics_Core.mineralPrice()))
+							builder->build(UnitTypes::Protoss_Cybernetics_Core, targetBuildLocation);
+							m_cyberneticAmount++;
 					}
 				}
 			}
@@ -163,6 +225,14 @@ void Tassadar::onFrame()
 			{
 				if(u->train(UnitTypes::Protoss_Zealot))
 					banker.RequestMinerals(UnitTypes::Protoss_Zealot.mineralPrice());
+			}
+		}
+		else if(u->getType() == UnitTypes::Protoss_Gateway)
+		{
+			if(u->isIdle() && banker.AvailableMinerals() >= UnitTypes::Protoss_Dragoon.mineralPrice())
+			{
+				if(u->train(UnitTypes::Protoss_Dragoon))
+					banker.RequestMinerals(UnitTypes::Protoss_Dragoon.mineralPrice());
 			}
 		}
 	}
