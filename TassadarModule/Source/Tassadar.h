@@ -2,6 +2,8 @@
 #include <BWAPI.h>
 #include "WorkerManager.h"
 #include "MoneyManager.h"
+#include "BuildingManager.h"
+#include "ArmyManager.h"
 
 // Remember not to use "Broodwar" in any global class constructor!
 
@@ -28,10 +30,9 @@ public:
   virtual void onUnitComplete(BWAPI::Unit unit);
   // Everything below this line is safe to modify.
 
-  void calculateBestGatewayAmount();
-
-
 private:
 	WorkerManager bossMan;
 	MoneyManager banker;
+	BuildingManager brickie;
+	ArmyManager general;
 };

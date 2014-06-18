@@ -4,248 +4,230 @@
 using namespace BWAPI;
 using namespace Filter;
 
-
-int m_gatewayAmount = 0;
-int m_maxGateway = 0;
-
-int m_cyberneticAmount = 0;
-int m_maxCybernetic = 1;
-
-// Calculates a new limit depending on supply used. 
-void Tassadar::calculateBestGatewayAmount()
-{
-	int supplyUsed = Broodwar->self()->supplyUsed()/2;
-
-	if(supplyUsed < 10)
-	{
-		m_maxGateway = 2;
-	}
-	else if (supplyUsed >= 10 && supplyUsed <= 20)
-	{
-		m_maxGateway = 3;
-	}
-	else if (supplyUsed >= 21 && supplyUsed <= 30)
-	{
-		m_maxGateway = 4;
-	}
-	else if (supplyUsed >= 31 && supplyUsed <= 40)
-	{
-		m_maxGateway = 5;
-	}
-	else if (supplyUsed >= 41 && supplyUsed <= 50)
-	{
-		m_maxGateway = 6;
-	}
-	else 
-	{
-		m_maxGateway = 6;
-	}
-
-}
-
 void Tassadar::onStart()
 {
-	// Send text sends it to the other players
 	Broodwar->sendText("En Taro Tassadar!");
 
-	// This writes it to the in-game console
-	Broodwar << "The map is " << Broodwar->mapName() << "!" << std::endl;
-	
-
-	// Enable the UserInput flag, which allows us to control the bot and type messages.
 	Broodwar->enableFlag(Flag::UserInput);
 
 	// Set the command optimization level so that common commands can be grouped
-
 	// and reduce the bot's APM (Actions Per Minute).
 	Broodwar->setCommandOptimizationLevel(2);
-	
-	// Retrieve you and your enemy's races. enemy() will just return the first enemy.
-	// If you wish to deal with multiple enemies then you must use enemies().
-	if ( Broodwar->enemy() ) // First make sure there is an enemy
-		Broodwar << "The matchup is " << Broodwar->self()->getRace() << " vs " << Broodwar->enemy()->getRace() << std::endl;
 
+	Broodwar->setLocalSpeed(15);
+	
 	banker.SetReserved(Broodwar->self()->getRace().getCenter().mineralPrice() + 4*Broodwar->self()->getRace().getWorker().mineralPrice());
 }
 
-void Tassadar::onEnd(bool isWinner)
-{
-	// Called when the game ends
-	if ( isWinner )
-	{
-		// Log your win here!
-	}
-}
-
-// Called once every game frame
 void Tassadar::onFrame()
 {
-	calculateBestGatewayAmount();
 
-	// Display the game frame rate as text in the upper left area of the screen
 	Broodwar->drawTextScreen(200, 0,  "FPS: %d", Broodwar->getFPS() );
-	//Broodwar->drawTextScreen(200, 20, "Average FPS: %f", Broodwar->getAverageFPS() );
 	Broodwar->drawTextScreen(200, 20, "Available Mins: %d", banker.AvailableMinerals());
-	Broodwar->drawTextScreen(200, 40, "Supply: %d / %d", Broodwar->self()->supplyUsed()/2, Broodwar->self()->supplyTotal()/2);
-	Broodwar->drawTextScreen(200, 60, "%d%%", (100 * Broodwar->self()->supplyUsed()/2) / (Broodwar->self()->supplyTotal()/2));
-
-	Broodwar->drawTextScreen(50, 20, "Current Gateways: %d", m_gatewayAmount);
-	Broodwar->drawTextScreen(50, 40, "Max Gateways: %d", m_maxGateway);
+	Broodwar->drawTextScreen(50, 0, "Current Gateways: %d", brickie.m_gatewayAmount);
+	Broodwar->drawTextScreen(50, 20, "Max Gateways: %d", brickie.calculateBestGatewayAmount());
+	Broodwar->drawTextScreen(300, 0, "Worker size: %d", bossMan.massOfMasses());
+	Broodwar->drawTextScreen(300, 20, "Army size: %d", general.armySize());
 	
-	// Return if the game is a replay or is paused
-	if ( Broodwar->isReplay() || Broodwar->isPaused() || !Broodwar->self() )
-		return;
-
 	// Prevent spamming by only running our onFrame once every number of latency frames.
 	// Latency frames are the number of frames before commands are processed.
 	if ( Broodwar->getFrameCount() % Broodwar->getLatencyFrames() != 0 )
-		return;
+		return;	
 
-	// Iterate through all the units that we own
-	Unitset myUnits = Broodwar->self()->getUnits();
-	for ( Unitset::iterator u = myUnits.begin(); u != myUnits.end(); ++u )
+	// Step 1. Pylons!
+	UnitType pylon = UnitTypes::Protoss_Pylon;
+	static int lastChecked = 0;
+
+	// If we're nearly out of supply and it's been a while since we last checked
+	if ( (100 * Broodwar->self()->supplyUsed()/2) / (Broodwar->self()->supplyTotal()/2) >= 80 &&
+		lastChecked + pylon.buildTime() + 200 < Broodwar->getFrameCount() )
 	{
-		// Ignore the unit if it no longer exists
-		// Make sure to include this block when handling any Unit pointer!
-		if ( !u->exists() )
-			continue;
+		bool bSuccess = false;
 
-		// Ignore the unit if it has one of the following status ailments
-		if ( u->isLockedDown() || u->isMaelstrommed() || u->isStasised() )
-			continue;
-
-		// Ignore the unit if it is in one of the following states
-		if ( u->isLoaded() || !u->isPowered() || u->isStuck() )
-			continue;
-
-		// Ignore the unit if it is incomplete or busy constructing
-		if ( !u->isCompleted() || u->isConstructing() )
-			continue;
-
-
-		// Finally make the unit do some stuff!
-
-
-		// If the unit is a worker unit
-		if ( u->getType().isWorker() )
+		if(banker.AvailableMinerals() >= pylon.mineralPrice())
 		{
-			bossMan.TickWorker(*u);
-		}
-		else if ( u->getType().isResourceDepot() ) // A resource depot is a Command Center, Nexus, or Hatchery
-		{
-			// Retrieve the supply provider type in the case that we have run out of supplies
-			UnitType supplyProviderType = u->getType().getRace().getSupplyProvider();
-			static int lastChecked = 0;
-
-			// If we're nearly out of supply
-			if ( (100 * Broodwar->self()->supplyUsed()/2) / (Broodwar->self()->supplyTotal()/2)  >= 80 &&
-				lastChecked + supplyProviderType.buildTime() + 200 < Broodwar->getFrameCount() )
+			Unit probe = bossMan.GetMeAWorker(brickie.nexii.front());
+			if (probe)
 			{
-				if(banker.AvailableMinerals() >= 100)
+				TilePosition targetBuildLocation = Broodwar->getBuildLocation(pylon, probe->getTilePosition());
+				if (targetBuildLocation)
 				{
-					Broodwar->sendText("Building pylon"); 
-					Broodwar->sendText("My supply usage is at %d%%", 100 * (Broodwar->self()->supplyUsed()/2) / (Broodwar->self()->supplyTotal()/2));
-
-					// Retrieve a unit that is capable of constructing the supply needed
-					Unit supplyBuilder = u->getClosestUnit(  GetType == supplyProviderType.whatBuilds().first &&
-						(IsIdle || IsGatheringMinerals) &&
-						IsOwned);
-					// If a unit was found
-					if ( supplyBuilder )
+					// Order the builder to construct the supply structure
+					if(banker.RequestMinerals(pylon.mineralPrice(), false))
 					{
-						TilePosition targetBuildLocation = Broodwar->getBuildLocation(supplyProviderType, supplyBuilder->getTilePosition());
-						if ( targetBuildLocation )
+						if(!probe->build(pylon, targetBuildLocation))
 						{
-							// Order the builder to construct the supply structure
-							banker.RequestMinerals(supplyProviderType.mineralPrice());
-							if(!supplyBuilder->build( supplyProviderType, targetBuildLocation ))
-								banker.ReturnMinerals(supplyProviderType.mineralPrice());
+							banker.ReturnMinerals(pylon.mineralPrice());
+						}
+						else
+						{
+							bSuccess = true;
 							lastChecked = Broodwar->getFrameCount();
 						}
-					} // closure: supplyBuilder is valid
-				}
-			} // closure: insufficient supply
-			// Order the depot to construct more workers! But only when it is idle.
-			else if ( u->isIdle() && banker.AvailableMinerals() >= UnitTypes::Protoss_Probe.mineralPrice() )
-			{
-				if(banker.RequestMinerals(UnitTypes::Protoss_Probe.mineralPrice()))
-				{
-					if(!u->train(UnitTypes::Protoss_Probe))
-					{
-						banker.ReturnMinerals(UnitTypes::Protoss_Probe.mineralPrice());
-						Position pos = u->getPosition();
-						Error lastErr = Broodwar->getLastError();
-						Broodwar->registerEvent([pos,lastErr](Game*){ Broodwar->drawTextMap(pos, "%c%s", Text::White, lastErr.c_str()); },   // action
-							nullptr,    // condition
-							Broodwar->getLatencyFrames());  // frames to run
 					}
 				}
 			}
+		}
 
-			if(banker.AvailableMinerals() >= UnitTypes::Protoss_Gateway.mineralPrice() && m_gatewayAmount <= m_maxGateway )
-			{
-				Unit builder = u->getClosestUnit(GetType == UnitTypes::Protoss_Probe &&
-				(IsIdle || IsGatheringMinerals) &&
-				IsOwned);
-				// If a unit was found
-				if ( builder )
-				{
-					TilePosition targetBuildLocation = Broodwar->getBuildLocation(UnitTypes::Protoss_Gateway, builder->getTilePosition());
-					if ( targetBuildLocation )
-					{
-						// Order the builder to construct the structure
-						if(banker.RequestMinerals(UnitTypes::Protoss_Gateway.mineralPrice()))
-							builder->build(UnitTypes::Protoss_Gateway, targetBuildLocation);
-							m_gatewayAmount++;
-					}
-				}
-			}
-			if(banker.AvailableMinerals() >= UnitTypes::Protoss_Cybernetics_Core.mineralPrice() && m_cyberneticAmount <= m_maxCybernetic )
-			{
-				Unit builder = u->getClosestUnit(GetType == UnitTypes::Protoss_Probe &&
-				(IsIdle || IsGatheringMinerals) &&
-				IsOwned);
-				// If a unit was found
-				if ( builder )
-				{
-					TilePosition targetBuildLocation = Broodwar->getBuildLocation(UnitTypes::Protoss_Cybernetics_Core, builder->getTilePosition());
-					if ( targetBuildLocation )
-					{
-						// Order the builder to construct the structure
-						if(banker.RequestMinerals(UnitTypes::Protoss_Cybernetics_Core.mineralPrice()))
-							builder->build(UnitTypes::Protoss_Cybernetics_Core, targetBuildLocation);
-							m_cyberneticAmount++;
-					}
-				}
-			}
-		}
-		else if(u->getType() == UnitTypes::Protoss_Gateway)
+		// If we fail to build a pylon when we need one, don't spend any more minerals
+		//banker.blockForPylon = !bSuccess;
+	}
+
+	// Step 2. Probes!	
+	for(Unitset::iterator nexus = brickie.nexii.begin(); nexus != brickie.nexii.end(); ++nexus)
+	{
+		if (nexus->isIdle() && banker.AvailableMinerals() >= UnitTypes::Protoss_Probe.mineralPrice() && !bossMan.MineralsSaturated())
 		{
-			if(u->isIdle() && banker.AvailableMinerals() >= UnitTypes::Protoss_Zealot.mineralPrice())
+			if(banker.RequestMinerals(UnitTypes::Protoss_Probe.mineralPrice()))
 			{
-				if(u->train(UnitTypes::Protoss_Zealot))
-					banker.RequestMinerals(UnitTypes::Protoss_Zealot.mineralPrice());
-			}
-		}
-		else if(u->getType() == UnitTypes::Protoss_Gateway)
-		{
-			if(u->isIdle() && banker.AvailableMinerals() >= UnitTypes::Protoss_Dragoon.mineralPrice())
-			{
-				if(u->train(UnitTypes::Protoss_Dragoon))
-					banker.RequestMinerals(UnitTypes::Protoss_Dragoon.mineralPrice());
+				if(!nexus->train(UnitTypes::Protoss_Probe))
+				{
+					banker.ReturnMinerals(UnitTypes::Protoss_Probe.mineralPrice());
+					Position pos = nexus->getPosition();
+					Error lastErr = Broodwar->getLastError();
+					Broodwar->registerEvent([pos,lastErr](Game*){ Broodwar->drawTextMap(pos, "%c%s", Text::White, lastErr.c_str()); },   // action
+						nullptr,    // condition
+						Broodwar->getLatencyFrames());  // frames to run
+				}
 			}
 		}
 	}
+	
+
+	// Step 3. Spend your shit!
+	if(banker.AvailableMinerals() >= UnitTypes::Protoss_Gateway.mineralPrice() && brickie.shouldBuildGateways() )
+	{
+		Unit builder = bossMan.GetMeAWorker(brickie.nexii.front());
+
+		if ( builder )
+		{
+			TilePosition targetBuildLocation = Broodwar->getBuildLocation(UnitTypes::Protoss_Gateway, builder->getTilePosition());
+			if ( targetBuildLocation )
+			{
+				// Order the builder to construct the structure
+				if(banker.RequestMinerals(UnitTypes::Protoss_Gateway.mineralPrice()))
+				{
+					if(builder->build(UnitTypes::Protoss_Gateway, targetBuildLocation))
+						++brickie.m_gatewayAmount;
+					else
+						banker.ReturnMinerals(UnitTypes::Protoss_Gateway.mineralPrice());
+				}
+			}
+		}
+	}
+	if(banker.AvailableMinerals() >= UnitTypes::Protoss_Cybernetics_Core.mineralPrice() && !brickie.haveCyberCore )
+	{
+		Unit builder = bossMan.GetMeAWorker(brickie.nexii.front());
+
+		if (builder)
+		{
+			TilePosition targetBuildLocation = Broodwar->getBuildLocation(UnitTypes::Protoss_Cybernetics_Core, builder->getTilePosition());
+			if ( targetBuildLocation )
+			{
+				// Order the builder to construct the structure
+				if(banker.RequestMinerals(UnitTypes::Protoss_Cybernetics_Core.mineralPrice()))
+				{
+					if(!builder->build(UnitTypes::Protoss_Cybernetics_Core, targetBuildLocation))
+						banker.ReturnMinerals(UnitTypes::Protoss_Cybernetics_Core.mineralPrice());
+				}
+			}
+		}
+	}
+	
+	// Tell all of our units to do stuff
+	bossMan.TickWorkers();
+
+	Unitset myUnits = Broodwar->self()->getUnits();
+	for ( Unitset::iterator u = myUnits.begin(); u != myUnits.end(); ++u )
+	{
+		if ( !u->exists() ||  u->isLockedDown() || u->isMaelstrommed() || u->isStasised() 
+			|| u->isLoaded() || !u->isPowered() || u->isStuck() 
+			|| !u->isCompleted() || u->isConstructing() )
+			continue;
+
+		if(u->getType() == UnitTypes::Protoss_Gateway)
+		{
+			if(u->isIdle() && banker.AvailableMinerals() >= UnitTypes::Protoss_Dragoon.mineralPrice() &&
+				banker.AvailableGas() >= UnitTypes::Protoss_Dragoon.gasPrice())
+			{
+				if(banker.RequestMinerals(UnitTypes::Protoss_Dragoon.mineralPrice()))
+				{
+					if(!u->train(UnitTypes::Protoss_Dragoon))
+						banker.ReturnMinerals(UnitTypes::Protoss_Dragoon.mineralPrice());
+				}
+			}
+			if(u->isIdle() && banker.AvailableMinerals() >= UnitTypes::Protoss_Zealot.mineralPrice())
+			{
+				if(banker.RequestMinerals(UnitTypes::Protoss_Zealot.mineralPrice()))
+				{
+					if(!u->train(UnitTypes::Protoss_Zealot))
+						banker.ReturnMinerals(UnitTypes::Protoss_Zealot.mineralPrice());
+				}
+			}			
+		}				
+	}
+
+	if(general.armySize() == 10 || general.armySize() == 30 || general.armySize() == 60 || general.armySize() > 100)
+	{
+		Broodwar->sendText("ATTTAAAAAACCCCKK!!!");
+		if (brickie.nexii.front() && brickie.nexii.front()->getTop() < 700)
+		{
+			// We are in the top half of the map
+			general.allOutAttack(Position(1381,5757));
+		}
+		else
+		{
+			// We are in the bottom half of the map
+			general.allOutAttack(Position(633,472));
+		}
+	}
+}
+
+void Tassadar::onUnitCreate(BWAPI::Unit unit)
+{
+	if(unit->getPlayer() == Broodwar->self())
+	{
+		banker.ReturnMinerals(unit->getType().mineralPrice());
+		
+		using namespace UnitTypes::Enum;
+		switch(unit->getType())
+		{
+		case Protoss_Probe:
+			bossMan.WorkerCreated(unit);
+			break;
+		case Protoss_Nexus:
+			brickie.nexii.push_back(unit);
+			break;
+		case Protoss_Cybernetics_Core:
+			brickie.haveCyberCore = true;
+			break;		
+		}
+	}
+}
+
+void Tassadar::onUnitComplete(BWAPI::Unit unit)
+{
+	if(unit->getPlayer() == Broodwar->self())
+	{
+		using namespace UnitTypes::Enum;
+		switch(unit->getType())
+		{
+			case Protoss_Zealot:
+			case Protoss_Dragoon:
+				general.warriorCreated(unit);
+				break;
+		}
+	}
+}
+
+#pragma region Unused methods
+void Tassadar::onEnd(bool isWinner)
+{
 }
 
 void Tassadar::onSendText(std::string text)
 {
-	// Send the text to the game if it is not being processed.
 	Broodwar->sendText("%s", text.c_str());
-
-
-	// Make sure to use %s and pass the text as a parameter,
-	// otherwise you may run into problems when you use the %(percent) character!
 }
 
 void Tassadar::onReceiveText(BWAPI::Player player, std::string text)
@@ -254,27 +236,10 @@ void Tassadar::onReceiveText(BWAPI::Player player, std::string text)
 
 void Tassadar::onPlayerLeft(BWAPI::Player player)
 {
-	// Interact verbally with the other players in the game by
-	// announcing that the other player has left.
-	Broodwar->sendText("Goodbye %s!", player->getName().c_str());
 }
 
 void Tassadar::onNukeDetect(BWAPI::Position target)
 {
-
-	// Check if the target is a valid position
-	if ( target )
-	{
-		// if so, print the location of the nuclear strike target
-		Broodwar << "Nuclear Launch Detected at " << target << std::endl;
-	}
-	else 
-	{
-		// Otherwise, ask other players where the nuke is!
-		Broodwar->sendText("Where's the nuke?");
-	}
-
-	// You can also retrieve all the nuclear missile targets using Broodwar->getNukeDots()!
 }
 
 void Tassadar::onUnitDiscover(BWAPI::Unit unit)
@@ -293,23 +258,19 @@ void Tassadar::onUnitHide(BWAPI::Unit unit)
 {
 }
 
-void Tassadar::onUnitCreate(BWAPI::Unit unit)
+void Tassadar::onUnitDestroy(BWAPI::Unit unit)
 {
 	if(unit->getPlayer() == Broodwar->self())
 	{
-		//Broodwar << "Available b4 unit: " << banker.AvailableMinerals() << std::endl;
-		banker.ReturnMinerals(unit->getType().mineralPrice());
-		//Broodwar << "Available after unit: " << banker.AvailableMinerals() << std::endl;
-		Broodwar->sendText("I have built a %s", unit->getType().c_str());
+		using namespace UnitTypes::Enum;
+		switch(unit->getType())
+		{
+			case Protoss_Zealot:
+			case Protoss_Dragoon:
+				general.warriorFallen(unit);
+				break;
+		}
 	}
-	if(unit->getType().isWorker())
-	{
-		bossMan.WorkerCreated(unit);
-	}
-}
-
-void Tassadar::onUnitDestroy(BWAPI::Unit unit)
-{
 }
 
 void Tassadar::onUnitMorph(BWAPI::Unit unit)
@@ -322,9 +283,5 @@ void Tassadar::onUnitRenegade(BWAPI::Unit unit)
 
 void Tassadar::onSaveGame(std::string gameName)
 {
-	Broodwar << "The game was saved to \"" << gameName << "\"" << std::endl;
 }
-
-void Tassadar::onUnitComplete(BWAPI::Unit unit)
-{
-}
+#pragma endregion 

@@ -97,12 +97,16 @@
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="Source\ArmyManager.cpp" />
+    <ClCompile Include="Source\BuildingManager.cpp" />
     <ClCompile Include="Source\Dll.cpp" />
     <ClCompile Include="Source\MoneyManager.cpp" />
     <ClCompile Include="Source\Tassadar.cpp" />
     <ClCompile Include="Source\WorkerManager.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Source\ArmyManager.h" />
+    <ClInclude Include="Source\BuildingManager.h" />
     <ClInclude Include="Source\MoneyManager.h" />
     <ClInclude Include="Source\Tassadar.h" />
     <ClInclude Include="Source\WorkerManager.h" />

@@ -10,6 +10,12 @@ class WorkerManager
 		WorkerManager(void);
 		~WorkerManager(void);
 		void WorkerCreated(BWAPI::Unit &proleteriat);
-		void TickWorker(BWAPI::Unit &proleteriat);
+		void TickWorkers();
+		int massOfMasses();
+		Unit GetMeAWorker(Unit nexus);
+		bool MineralsSaturated();
+
+	private:
+		Unitset unwashedMasses;
 };
 
